@@ -1,0 +1,15 @@
+# Virtual environments
+backend/.venv/
+.venv/
+venv/
+ENV/
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local credentials
+.env
