@@ -1,0 +1,33 @@
+name: Hardware Arbitrage Pipeline
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-pipeline.txt
+
+      - name: Install pipeline dependencies
+        run: pip install -r backend/requirements-pipeline.txt
+
+      - name: Run arbitrage pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python3 -m backend.pipeline.run_pipeline
