@@ -36,7 +36,7 @@ def run_pipeline() -> None:
     gemini = genai.Client(api_key=gemini_key) if gemini_key else None
 
     try:
-        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+        with psycopg.connect(db_url, row_factory=dict_row,prepare_threshold=None, autocommit=True) as conn:
             print(f"[1/5] Ingesting live USED Buy-It-Now GPUs from {marketplaces}...")
             for mp in marketplaces:
                 mp_listings = []
