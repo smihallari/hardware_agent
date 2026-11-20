@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 from pydantic import BaseModel, Field
 from google import genai
@@ -19,7 +20,7 @@ class DealAuditItem(BaseModel):
         ]
     ] = Field(default_factory=list)
     arbitrage_rationale: str = Field(
-        description="Max 2 sentences: state the net flip margin vs Q50 and explain either why the discount is legitimate (e.g., urgent sale, no box) or what specific defect disqualifies it."
+        description="Max 2 sentences in English: state net margin vs Q50 and explain either why the discount looks legitimate or the exact defect/risk disqualifying it."
     )
 
 
@@ -30,32 +31,40 @@ class BatchAuditResponse(BaseModel):
 def audit_flagged_deals(
     client: genai.Client, candidates: list[dict]
 ) -> list[DealAuditItem]:
-    """
-    Expects candidates with keys:
-    listing_id, canonical_sku, title, description, seller_rating,
-    evaluated_price, q10, q50, expected_net_profit
-    """
     if not candidates:
         return []
 
+    sanitized = [
+        {**c, "description": (c.get("description") or "")[:1500]}
+        for c in candidates
+    ]
+
     prompt = (
-        "You are a hardware arbitrage risk auditor. Each listing below is priced below the "
-        "10th percentile market floor (Q10). Inspect the full title, description, and seller rating "
-        "for hidden defects or transaction scams (e.g. 'untested', 'works fine unless gaming', "
-        "'one fan broken', 'bank transfer only without shipping protection', or title/body SKU mismatch).\n"
-        "- Mark 'BUY' ONLY if the item is fully functional and the discount is explainable (quick cash, upgrade, missing box).\n"
-        "- Mark 'REJECT_TRAP' if any functional defect, 'untested' excuse, or scam payment condition exists.\n"
-        "- Mark 'MANUAL_REVIEW' if description is too vague to confirm full stability.\n\n"
-        f"Candidates:\n{candidates}"
+        "You are a European second-hand GPU risk auditor. Listings may be in English, German, French, or Italian.\n"
+        "Each listing below is priced below the 10th percentile market floor (Q10). Inspect title, full description, "
+        "and seller_rating for hidden traps: 'defekt', 'Bastler', 'nicht getestet', 'HS', 'non testé', 'guasto', "
+        "'artifacting', 'crashes under load', 'broken fan/port', 'Überweisung / bank transfer only', "
+        "empty boxes, waterblocks, or title/body SKU downgrades.\n"
+        "- Mark 'BUY' ONLY if the card is described as working with no functional caveats.\n"
+        "- Mark 'REJECT_TRAP' if any defect, untested excuse, accessory-only trap, or off-platform payment risk exists.\n"
+        "- Mark 'MANUAL_REVIEW' if the description is too vague/short to confirm functionality.\n\n"
+        f"Candidates:\n{json.dumps(sanitized, ensure_ascii=False)}"
     )
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=BatchAuditResponse,
-            temperature=0.0,
-        ),
-    )
-    return BatchAuditResponse.model_validate_json(response.text).audits
+    from google.genai import errors
+
+    for model_name in ("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=BatchAuditResponse,
+                    temperature=0.0,
+                ),
+            )
+            return BatchAuditResponse.model_validate_json(response.text).audits
+        except errors.ServerError:
+            continue
+    return []

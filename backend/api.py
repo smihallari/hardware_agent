@@ -188,10 +188,12 @@ def list_sku_benchmarks() -> list[SkuBenchmarkOut]:
                 ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY d.q10_price)::numeric, 2) AS median_q10,
                 ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY d.q50_price)::numeric, 2) AS median_q50,
                 ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY d.q90_price)::numeric, 2) AS median_q90
-            FROM deal_evaluations d
-            JOIN raw_listings r ON r.id = d.listing_id
+            FROM raw_listings r
             JOIN extracted_features f ON f.content_hash = r.content_hash
+            LEFT JOIN deal_evaluations d ON d.listing_id = r.id
+            WHERE f.is_valid_hardware = TRUE
             GROUP BY f.category, f.canonical_sku
+            HAVING COUNT(d.listing_id) > 0
             ORDER BY f.category, median_q50 DESC;
             """
         )
