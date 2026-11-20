@@ -1,2 +1,10 @@
-httpx
+psycopg[binary]
 python-dotenv
+pydantic
+requests
+httpx
+numpy
+pandas
+scikit-learn
+lightgbm
+google-genai
